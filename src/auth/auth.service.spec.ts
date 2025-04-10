@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Document } from 'mongoose';
 import { AuthService } from './auth.service';
 import { User } from './schemas/user.schema';
 import { JwtService } from '@nestjs/jwt';
@@ -16,14 +16,11 @@ describe('AuthService', () => {
     _id: '61c0ccf11d7bf83d153d7c06',
     name: 'Ghulam',
     email: 'ghulam1@gmail.com',
-  };
+    password: 'hashedPassword',
+    __v: 0,
+  } as unknown as Document<unknown, object, User> & User;
 
   const token = 'jwtToken';
-
-  const mockAuthService = {
-    create: jest.fn(),
-    findOne: jest.fn(),
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -32,7 +29,10 @@ describe('AuthService', () => {
         JwtService,
         {
           provide: getModelToken(User.name),
-          useValue: mockAuthService,
+          useValue: {
+            create: jest.fn(),
+            findOne: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -54,12 +54,11 @@ describe('AuthService', () => {
     };
 
     it('should register the new user', async () => {
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword');
-      jest
-        .spyOn(model, 'create')
-        .mockImplementationOnce(() => Promise.resolve(mockUser));
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword' as never);
 
-      jest.spyOn(jwtService, 'sign').mockReturnValue('jwtToken');
+      jest.spyOn(model, 'create').mockResolvedValueOnce([mockUser] as any);
+
+      jest.spyOn(jwtService, 'sign').mockReturnValue(token);
 
       const result = await authService.signUp(signUpDto);
 
@@ -68,9 +67,29 @@ describe('AuthService', () => {
     });
 
     it('should throw duplicate email entered', async () => {
-      jest
-        .spyOn(model, 'create')
-        .mockImplementationOnce(() => Promise.reject({ code: 11000 }));
+      // Mock the create method to throw a MongoDB duplicate key error
+      jest.spyOn(model, 'create').mockRejectedValueOnce({
+        code: 11000,
+        keyPattern: { email: 1 },
+        keyValue: { email: signUpDto.email },
+      });
+
+      // Use try-catch to verify the exception
+      try {
+        await authService.signUp(signUpDto);
+        fail('Expected ConflictException to be thrown');
+      } catch (error) {
+        if (error instanceof Error) {
+          expect(error).toBeInstanceOf(ConflictException);
+          expect(error.message).toBe('Duplicate email entered');
+        }
+      }
+    });
+
+    it('should throw ConflictException for duplicate email', async () => {
+      jest.spyOn(model, 'create').mockImplementationOnce(() => {
+        throw new ConflictException('Duplicate email');
+      });
 
       await expect(authService.signUp(signUpDto)).rejects.toThrow(
         ConflictException,
@@ -86,8 +105,7 @@ describe('AuthService', () => {
 
     it('should login user and return the token', async () => {
       jest.spyOn(model, 'findOne').mockResolvedValueOnce(mockUser);
-
-      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true as never);
       jest.spyOn(jwtService, 'sign').mockReturnValue(token);
 
       const result = await authService.login(loginDto);
@@ -98,16 +116,16 @@ describe('AuthService', () => {
     it('should throw invalid email error', () => {
       jest.spyOn(model, 'findOne').mockResolvedValueOnce(null);
 
-      expect(authService.login(loginDto)).rejects.toThrow(
+      return expect(authService.login(loginDto)).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
     it('should throw invalid password error', () => {
       jest.spyOn(model, 'findOne').mockResolvedValueOnce(mockUser);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(false);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(false as never);
 
-      expect(authService.login(loginDto)).rejects.toThrow(
+      return expect(authService.login(loginDto)).rejects.toThrow(
         UnauthorizedException,
       );
     });

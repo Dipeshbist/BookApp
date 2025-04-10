@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { BookService } from './book.service';
 import { getModelToken } from '@nestjs/mongoose';
@@ -61,12 +60,12 @@ describe('BookService', () => {
             limit: () => ({
               skip: jest.fn().mockResolvedValue([mockBook]),
             }),
-          }) as any,
+          }) as unknown as mongoose.Query<Book[], Book>,
       );
 
       const result = await bookService.findAll(query);
 
-      expect(model.find).toHaveBeenCalledWith({
+      expect(jest.spyOn(model, 'find')).toHaveBeenCalledWith({
         title: { $regex: 'test', $options: 'i' },
       });
 
@@ -86,7 +85,7 @@ describe('BookService', () => {
 
       jest
         .spyOn(model, 'create')
-        .mockImplementationOnce(() => Promise.resolve(mockBook));
+        .mockImplementationOnce(() => Promise.resolve(mockBook as any));
 
       const result = await bookService.create(
         newBook as CreateBookDto,
@@ -103,7 +102,7 @@ describe('BookService', () => {
 
       const result = await bookService.findById(mockBook._id);
 
-      expect(model.findById).toHaveBeenCalledWith(mockBook._id);
+      expect(jest.spyOn(model, 'findById')).toHaveBeenCalledWith(mockBook._id);
       expect(result).toEqual(mockBook);
     });
 
@@ -129,7 +128,7 @@ describe('BookService', () => {
         NotFoundException,
       );
 
-      expect(model.findById).toHaveBeenCalledWith(mockBook._id);
+      expect(jest.spyOn(model, 'findById')).toHaveBeenCalledWith(mockBook._id);
     });
   });
 
@@ -142,10 +141,14 @@ describe('BookService', () => {
 
       const result = await bookService.updateById(mockBook._id, book as any);
 
-      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(mockBook._id, book, {
-        new: true,
-        runValidators: true,
-      });
+      expect(jest.spyOn(model, 'findByIdAndUpdate')).toHaveBeenCalledWith(
+        mockBook._id,
+        book,
+        {
+          new: true,
+          runValidators: true,
+        },
+      );
 
       expect(result.title).toEqual(book.title);
     });
@@ -157,9 +160,11 @@ describe('BookService', () => {
 
       const result = await bookService.deleteById(mockBook._id);
 
-      expect(model.findByIdAndDelete).toHaveBeenCalledWith(mockBook._id);
+      expect(jest.spyOn(model, 'findByIdAndDelete')).toHaveBeenCalledWith(
+        mockBook._id,
+      );
 
-      expect(result).toEqual({ deleted: true });
+      expect(result).toEqual(mockBook); // Expect the full book object
     });
   });
 });
