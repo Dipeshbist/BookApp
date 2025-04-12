@@ -8,6 +8,12 @@ import { CreateBookDto } from './dto/create-book.dto';
 import { User } from '../auth/schemas/user.schema';
 import { UpdateBookDto } from './dto/update-book.dto';
 
+import { Request } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user: User;
+}
+
 describe('BookController', () => {
   let bookService: BookService;
   let bookController: BookController;
@@ -82,7 +88,7 @@ describe('BookController', () => {
 
       const result = await bookController.createBook(
         newBook as CreateBookDto,
-        mockUser as User,
+        { user: mockUser } as AuthenticatedRequest,
       );
 
       expect(bookService.create).toHaveBeenCalled();
@@ -119,7 +125,6 @@ describe('BookController', () => {
   describe('deleteBook', () => {
     it('should delete a book by ID', async () => {
       const result = await bookController.deleteBook(mockBook._id);
-
       expect(bookService.deleteById).toHaveBeenCalled();
       expect(result).toEqual({ deleted: true });
     });
