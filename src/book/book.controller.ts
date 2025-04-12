@@ -17,6 +17,12 @@ import { Book } from './schemas/book.schema';
 
 import { Query as ExpressQuery } from 'express-serve-static-core';
 import { AuthGuard } from '@nestjs/passport';
+import { Request } from 'express';
+import { User } from '../auth/schemas/user.schema';
+
+interface AuthenticatedRequest extends Request {
+  user: User;
+}
 
 @Controller('books')
 export class BookController {
@@ -30,9 +36,8 @@ export class BookController {
   @Post()
   @UseGuards(AuthGuard())
   async createBook(
-    @Body()
-    book: CreateBookDto,
-    @Req() req,
+    @Body() book: CreateBookDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Book> {
     return this.bookService.create(book, req.user);
   }
